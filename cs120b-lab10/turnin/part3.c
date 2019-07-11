@@ -72,51 +72,56 @@ void PWM_off(){
 	TCCR3A =0x00;
 	TCCR3B = 0x00;
 }
-double C = 2610.63;
-double D = 2930.66;
-double E = 3290.63;
-double F = 3490.23;
-double G = 3920.00;
-double A = 4400.00;
-double B = 4930.88;
-double C5 = 5230.25;
-double nodes[8] = { 2610.63,2930.66,3290.63,3490.23,3920.00,4400.00,4930.88,5230.25};
-unsigned char i;
-enum states {start, wait, pressA0, pressA1, pressA2,pressing} state;
+const double C = 2610.63;
+const double D = 2930.66;
+const double E = 3290.63;
+
+enum states {start, wait, pressA0, pressA1, pressA2,pressing, More} state;
 unsigned int count;
-unsigned char on;
 const unsigned int timer = 30;
+
 void tick(){
 	unsigned char A = ~PINA;
-	unsigned char A0 = ~PINA &0x01;
-	unsigned char A1 = ~PINA & 0x02;
-	unsigned char A2 = ~PINA & 0x04;
 	switch(state){
 		case start:
 		state = wait;
 		break;
 		case wait:
-		if(A0 && ~A1 && ~A2)
+		if( (A &0x07) == 0x01)
 		state = pressA0;
-		else if(~A0 && A1 && ~A2)
+		else if((A &0x07) ==0x02)
 		state = pressA1;
-		else if(~A0 && ~A1 && A2)
+		else if((A&0x07) == 0x04)
 		state = pressA2;
+		else if (A > 0)
+		state = More;
 		else state = wait;
 		break;
 		case pressA0:
+		if(A == 1)
 		state = pressing;
-		break;
-		case pressA1:
-		state = pressing;
-		break;
-		case pressA2:
-		state = pressing;
-		break;
-		case pressing:
-		if(A) state = pressing;
 		else state = wait;
 		break;
+		case pressA1:
+		if(A == 2)
+		state = pressing;
+		else state = wait;
+		break;
+		case pressA2:
+		if(A == 4)
+		state = pressing;
+		else state = wait;
+		break;
+		case pressing:
+		if(A != 1 && A != 0 && A != 2 && A != 4) state = More;
+		if(count>0) state = pressing;
+		else state = wait;
+		break;
+		case More:
+		if( A == 0)
+			state = wait;
+		else
+			state = More;
 		default:
 		state =start;
 		break;
@@ -125,27 +130,31 @@ void tick(){
 		case start:
 		break;
 		case wait:
+		count = 0;
+		PWM_off();
 		break;
 		case pressA0:
-		if(on == 0){
+		count = timer;
 		PWM_on();
-		i = 0;
-		set_PWM(nodes[i]);
-		on = 1;
-		}else{
-			PWM_off();
-			on = 0;
-		}
+		set_PWM(C);
 		break;
 		case pressA1:
-		if(i < 7)
-			set_PWM(nodes[++i]);
+		count = timer;
+		PWM_on();
+		set_PWM(D);
 		break;
 		case pressA2:
-		if(i > 0)
-			set_PWM(nodes[--i]);
+		count = timer;
+		PWM_on();
+		set_PWM(E);
 		break;
 		case pressing:
+		if(count > 0)
+			count--;
+		else PWM_off();
+		break;
+		case More:
+		PWM_off();
 		break;
 		default:
 		break;
